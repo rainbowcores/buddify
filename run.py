@@ -16,10 +16,13 @@ app = create_app(config_name)
 
 """defining the configuration to be used"""
 
-
 @app.route('/')
 def hello():
     return 'Welcome to Buddify'
+
+@app.route('/error')
+def error():
+    return 'Error Authorizing Spotify'
 
 
 if __name__ == '__main__':

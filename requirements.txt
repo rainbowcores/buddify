@@ -1,8 +1,13 @@
 astroid==2.5.2
 autoenv==1.0.0
 autopep8==1.5.6
+cachelib==0.1.1
+certifi==2020.12.5
+chardet==4.0.0
 click==7.1.2
 Flask==1.1.2
+Flask-Session==0.3.2
+idna==2.10
 isort==5.8.0
 itsdangerous==1.1.0
 Jinja2==2.11.3
@@ -12,6 +17,8 @@ mccabe==0.6.1
 pycodestyle==2.7.0
 pylint==2.7.4
 python-dotenv==0.16.0
+requests==2.25.1
 toml==0.10.2
+urllib3==1.26.4
 Werkzeug==1.0.1
 wrapt==1.12.1
