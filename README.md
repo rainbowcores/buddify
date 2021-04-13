@@ -1,2 +1,4 @@
 # buddify
 Allow friends to add songs to a common Spotify playlist/queue from different devices with installing Spotify or using Spotify web.
+
+Built on Spotify Web API and Python Flask
