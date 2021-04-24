@@ -131,4 +131,4 @@ dmypy.json
 #google creds
 buddify.json
 
-flask_session/*
+flask_session/
