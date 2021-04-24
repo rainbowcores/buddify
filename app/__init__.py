@@ -1,6 +1,7 @@
 from flask import Flask,session
 from flask_session import Session
-from app.auth import thisapi as users
+from app.auth import auth
+from app.playlist import playlist
 
 from instance.config import app_config
 
@@ -13,7 +14,8 @@ def create_app(config_name):
     app.config['SECRET_KEY'] = 'redsfsfsfsfis'
     sess.init_app(app)
     app.app_context().push()
-    app.register_blueprint(users)
+    app.register_blueprint(auth)
+    app.register_blueprint(playlist)
     #app.config.from_pyfile('config.py')
     print("init")
 
