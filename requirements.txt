@@ -19,6 +19,6 @@ pylint==2.7.4
 python-dotenv==0.16.0
 requests==2.25.1
 toml==0.10.2
-urllib3==1.26.4
+urllib3==1.26.5
 Werkzeug==1.0.1
 wrapt==1.12.1
