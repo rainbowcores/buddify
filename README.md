@@ -3,6 +3,7 @@ Allow friends to add songs to a common Spotify playlist/queue from different dev
 
 Built on Spotify Web API and Python Flask
 
+
 - python3 -m venv .buddvenv         
 - source .buddvenv/bin/activate
 - pip install -r requirements.txt
