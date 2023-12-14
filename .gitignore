@@ -104,6 +104,7 @@ celerybeat.pid
 # Environments
 .env
 .venv
+.buddifyvenv
 env/
 venv/
 ENV/
@@ -132,3 +133,5 @@ dmypy.json
 buddify.json
 
 flask_session/
+.vscode/launch.json
+.DS_Store

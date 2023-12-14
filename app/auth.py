@@ -1,11 +1,10 @@
 from flask import Flask, Blueprint, make_response, jsonify, request, Blueprint, abort, json, redirect, session
 from flask.logging import create_logger
-# from app.firebase import db
+from .firebase import db
 import os
 import requests
 from urllib.parse import urlencode
 import base64
-import six
 
 app = Flask(__name__)
 log = create_logger(app)
@@ -147,8 +146,8 @@ def getCurrentUser():
 		session, 'https://api.spotify.com/v1/me', )
 	if current_user_details is None:
 		return redirect('/auth/login')
-	return current_user_details.json()
-	# return saveUserDetailsToDB(current_user_details.json())
+	# return current_user_details.json()
+	return saveUserDetailsToDB(current_user_details.json())
 
 
 @auth.route('/shareProfile')
