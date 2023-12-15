@@ -38,9 +38,30 @@ def callback():
 		return redirect('/error')
 	else:
 		return getInitToken(code)
+
+@auth.route('/currentUser', methods=['GET'])
+def getCurrentUserView():
+	return getCurrentUser()
+
+@auth.route('/shareProfile')
+def shareProfile():
+	getCurrentUser()
+	return response(200, 'Shared User Profile Successfully', request.url_root+'user/'+session['user_id'])
+
+@auth.route('/logout')
+def logout():
+	current_user_details = getCurrentUser()
+	session.clear()
+	
+	db.collection(u'users').document(u''+current_user_details['id']).delete()
+	return response(200, 'Logged Out Successfully')
+
+@auth.route('/user/<username>')
+def sharedUserHomePage(username):
+	return redirect('/')
 	
 def response(code, message, data=None):
-	""" Creates a basic reposnse """
+	""" Creates a basic response """
 	response = {
 		"status": code,
 		"message": message,
@@ -87,11 +108,6 @@ def saveUserDetailsToDB(current_user_details, **kwargs):
 	return response(200, 'User Details saved to db')
 
 
-def getLoginStatus():
-	if 'access_key' not in session:
-		return redirect('/auth/login')
-
-
 def getInitToken(code):
 	headers = {'Accept': 'application/json',
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -135,25 +151,17 @@ def makeGetRequest(session, url, params={}):
 		return response(request_response.status_code, 'url: ' + str(url), request_response)
 
 
-@auth.route('/currentUser', methods=['GET'])
-def getCurrentUserView():
-	getLoginStatus()
-	return getCurrentUser()
-
-
 def getCurrentUser():
+	""" Get current logged in user by using details stored in current session a
+	    and save said access details to the firestore db 
+	"""
 	current_user_details = makeGetRequest(
 		session, 'https://api.spotify.com/v1/me', )
 	if current_user_details is None:
-		return redirect('/auth/login')
-	# return current_user_details.json()
-	return saveUserDetailsToDB(current_user_details.json())
-
-
-@auth.route('/shareProfile')
-def shareProfile():
-	getLoginStatus()
-	return response(200, 'Shared User Profile Successfully', request.url_root+'user/'+session['user_id'])
+		return response(404, 'There is no logged in user')
+	else :
+		saveUserDetailsToDB(current_user_details.json())
+	return current_user_details.json()
 
 
 def getSharedUserDetails(username):
@@ -167,7 +175,3 @@ def getSharedUserDetails(username):
 	shared_user_details['refresh_token'] = get_user_details.get('refresh_token')
 	return shared_user_details
 
-
-@auth.route('/user/<username>')
-def sharedUserHomePage(username):
-	return redirect('/')
