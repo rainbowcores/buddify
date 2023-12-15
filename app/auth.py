@@ -1,25 +1,67 @@
 from flask import Flask, Blueprint, make_response, jsonify, request, Blueprint, abort, json, redirect, session
 from flask.logging import create_logger
-from app.firebase import db
+from .firebase import db
 import os
 import requests
 from urllib.parse import urlencode
 import base64
-import six
 
 app = Flask(__name__)
 log = create_logger(app)
 
-auth = Blueprint('auth', __name__, url_prefix='/api')
+auth = Blueprint('auth', __name__, url_prefix='/auth')
 client_id = os.getenv("client_id")
 redirect_uri = os.getenv("redirect_uri")
 scope = os.getenv("scope")
 client_secret = os.getenv("client_secret")
-token_url = 'https://accounts.spotify.com/api/token'
+tokenUrl = 'https://accounts.spotify.com/api/token'
 
 
+@auth.route('/login', methods=['GET'])
+def login():
+	state = os.urandom(16).hex()
+	authorize_url = 'https://accounts.spotify.com/authorize?response_type=code&client_id='+client_id+'&redirect_uri='+redirect_uri+'&scope='+scope +\
+		'&show_dialog=false&state='+state
+	login_response = redirect(authorize_url)
+	print('logged in')
+	return login_response
+
+
+@auth.route('/callback', methods=['GET'])
+def callback():
+	code = request.args.get("code")
+	error = request.args.get("error")
+	'''In both cases, your app should compare the state parameter that it received in the redirection URI with the state parameter it originally provided to Spotify in the authorization URI. If there is a mismatch then your app should reject the request and stop the authentication flow.'''
+	if code is None and error is not None:
+		print(error)
+		log.error('callback:' + str(error))
+		return redirect('/error')
+	else:
+		return getInitToken(code)
+
+@auth.route('/currentUser', methods=['GET'])
+def getCurrentUserView():
+	return getCurrentUser()
+
+@auth.route('/shareProfile')
+def shareProfile():
+	getCurrentUser()
+	return response(200, 'Shared User Profile Successfully', request.url_root+'user/'+session['user_id'])
+
+@auth.route('/logout')
+def logout():
+	current_user_details = getCurrentUser()
+	session.clear()
+	
+	db.collection(u'users').document(u''+current_user_details['id']).delete()
+	return response(200, 'Logged Out Successfully')
+
+@auth.route('/user/<username>')
+def sharedUserHomePage(username):
+	return redirect('/')
+	
 def response(code, message, data=None):
-	""" Creates a basic reposnse """
+	""" Creates a basic response """
 	response = {
 		"status": code,
 		"message": message,
@@ -27,7 +69,9 @@ def response(code, message, data=None):
 	}
 	return make_response(jsonify(response), code)
 
+
 def saveDataToSession(post_response):
+
 	if post_response.status_code == 200:
 		pr = post_response.json()
 		session['access_token'] = pr['access_token']
@@ -37,15 +81,17 @@ def saveDataToSession(post_response):
 		getCurrentUser()
 		return response(post_response.status_code, 'Token gotten sucessfully', pr)
 	elif post_response.status_code == 400:
-		return redirect('/api/login')
+		return redirect('/error')
 	else:
-		log.error('gettingToken:' + str(post_response)+ '\n session' + str(session))
-		return redirect('/api/login')
+		log.error('gettingToken:' + str(post_response) + '\n session' + str(session))
+		return redirect('/error')
+
 
 def saveUserDetailsToDB(current_user_details, **kwargs):
-	if("shared_user_details" in kwargs):
-		shared_user_details=kwargs['shared_user_details']
-		doc_ref = db.collection(u'users').document(u''+shared_user_details['user_id'])
+	if ("shared_user_details" in kwargs):
+		shared_user_details = kwargs['shared_user_details']
+		doc_ref = db.collection(u'users').document(
+			u''+shared_user_details['user_id'])
 		doc_ref.set({
 			u'user': u''+shared_user_details['user_id'],
 			u'access_token': u''+current_user_details['access_token'],
@@ -61,31 +107,30 @@ def saveUserDetailsToDB(current_user_details, **kwargs):
 		})
 	return response(200, 'User Details saved to db')
 
-def getLoginStatus():
-	if 'access_key' not in session:
-		return redirect('/api/login')
-
 
 def getInitToken(code):
 	headers = {'Accept': 'application/json',
-			   'Content-Type': 'application/x-www-form-urlencoded'}
-	body = {'code': code, 'redirect_uri': redirect_uri, 'grant_type': 'authorization_code', 'client_id': client_id,
-			'client_secret': client_secret}
+            'Content-Type': 'application/x-www-form-urlencoded',
+			'Authorization': 'Basic ' + base64.b64encode((client_id + ':' + client_secret).encode('utf-8')).decode('utf-8')}
+	body = {'code': code, 'redirect_uri': redirect_uri,
+	    'grant_type': 'authorization_code'}
 	return getToken(body, headers)
 
-def refreshTokenHeaders():
-	auth_header = base64.b64encode(six.text_type(client_id + ':' + client_secret).encode('ascii'))
-	headers= {'Authorization': 'Basic %s' % auth_header.decode('ascii')}
-	return headers
 
 def getToken(body, headers):
-	post_response = requests.post(token_url, headers=headers, data=body)
+	post_response = requests.post(tokenUrl, headers=headers, data=body)
+	log.error(body)
+	log.error(headers)
+	log.error(post_response)
 	return saveDataToSession(post_response)
 
+
 def refreshToken(session):
-	body = {'refresh_token': session['refresh_token'], 'grant_type': 'refresh_token'}
-	headers = refreshTokenHeaders()
-	return getToken(body,headers)
+	body = {'refresh_token': session['refresh_token'],
+         'grant_type': 'refresh_token'}
+	headers = {'Authorization': 'Basic ' + base64.b64encode((client_id + ':' + client_secret).encode('utf-8')).decode('utf-8')}
+	return getToken(body, headers)
+
 
 def makeGetRequest(session, url, params={}):
 	if 'access_token' not in session:
@@ -94,68 +139,39 @@ def makeGetRequest(session, url, params={}):
 		headers = {'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded',
 				"Authorization": "Bearer {}".format(session['access_token'])}
 		request_response = requests.get(url, headers=headers, params=params)
-		if request_response.status_code == 200:
+	if request_response.status_code == 200:
 			return request_response
-		elif request_response.status_code == 401:
-			refreshToken(session)
-			request_response= makeGetRequest(session, url, params)
-			return request_response.json()
-		else:
-			log.error('makeGetRequest Failed: ' +
-					str(request_response.status_code) + ' url: ' + str(url))
-			return response(request_response.status_code, 'url: ' + str(url), request_response)
-
-
-@auth.route('/login', methods=['GET'])
-def login():
-
-	authorize_url = 'https://accounts.spotify.com/en/authorize?response_type=code&client_id='+client_id+'&redirect_uri='+redirect_uri+'&scope='+scope +\
-		'&show_dialog=false'
-	login_response = redirect(authorize_url)
-	print('logged in')
-	return login_response
-
-
-@auth.route('/callback', methods=['GET'])
-def callback():
-	code = request.args.get("code")
-	error = request.args.get("error")
-	if code is None and error is not None:
-		print(error)
-		log.error('callback:' + str(error))
-		return redirect('/error')
+	elif request_response.status_code == 401:
+		refreshToken(session)
+		request_response = makeGetRequest(session, url, params)
+		return request_response.json()
 	else:
-		return getInitToken(code)
+		log.error('makeGetRequest Failed: ' +
+					str(request_response.status_code) + ' url: ' + str(url))
+		return response(request_response.status_code, 'url: ' + str(url), request_response)
 
-
-@auth.route('/currentUser', methods=['GET'])
-def getCurrentUserView():
-	getLoginStatus()
-	return getCurrentUser()
 
 def getCurrentUser():
-	current_user_details = makeGetRequest(session, 'https://api.spotify.com/v1/me', )
+	""" Get current logged in user by using details stored in current session a
+	    and save said access details to the firestore db 
+	"""
+	current_user_details = makeGetRequest(
+		session, 'https://api.spotify.com/v1/me', )
 	if current_user_details is None:
-		return redirect('/api/login')
-	current_user_details = current_user_details.json()
-	return saveUserDetailsToDB(current_user_details)
+		return response(404, 'There is no logged in user')
+	else :
+		saveUserDetailsToDB(current_user_details.json())
+	return current_user_details.json()
 
-
-@auth.route('/shareProfile')
-def shareProfile():
-	getLoginStatus()
-	return response(200, 'Shared User Profile Successfully', request.url_root+'user/'+session['user_id'])
 
 def getSharedUserDetails(username):
 	user_details = db.collection(u'users').document(u''+username)
-	get_user_details = user_details.get(field_paths={'user', 'access_token', 'refresh_token'}).to_dict()
+	get_user_details = user_details.get(
+		field_paths={'user', 'access_token', 'refresh_token'}).to_dict()
 	# user=get_bal.get('user')
-	shared_user_details= {}
+	shared_user_details = {}
 	shared_user_details['user_id'] = get_user_details.get('user')
 	shared_user_details['access_token'] = get_user_details.get('access_token')
-	shared_user_details['refresh_token']= get_user_details.get('refresh_token')
+	shared_user_details['refresh_token'] = get_user_details.get('refresh_token')
 	return shared_user_details
 
-@auth.route('/user/<username>')
-def sharedUserHomePage(username):
-	return redirect('/')
